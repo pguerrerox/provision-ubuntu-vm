@@ -23,7 +23,7 @@ It configures core system settings (hostname + static networking) and can instal
 - Latest Node.js LTS via `nvm`
 - `fish` shell
 - `oh-my-posh`
-- `oh-my-posh` atomic theme for `fish`
+- `oh-my-posh` `stelbent-compact.minimal` theme for `fish`
 
 ### UX and safety improvements
 - Colored prompts and example input hints (when terminal supports color)
@@ -69,7 +69,7 @@ The script is interactive and will ask for:
 - New hostname
 - Network interface + static CIDR
 - Gateway/DNS override choices
-- Optional installs (`nvm`, Node LTS, `fish`, `oh-my-posh`, atomic theme)
+- Optional installs (`nvm`, Node LTS, `fish`, `oh-my-posh`, `stelbent-compact.minimal` theme)
 
 ## What gets changed
 
@@ -80,7 +80,7 @@ The script is interactive and will ask for:
 - User shell config files (when optional tools are selected), such as:
   - `~/.bashrc`
   - `~/.config/fish/config.fish`
-  - `~/.poshthemes/atomic.omp.json`
+  - `~/.poshthemes/stelbent-compact.minimal.omp.json`
 
 ## After provisioning
 

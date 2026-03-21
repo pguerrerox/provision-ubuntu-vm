@@ -12,7 +12,7 @@ set -euo pipefail
 #    - latest Node LTS
 #    - fish shell
 #    - oh-my-posh
-#    - oh-my-posh atomic theme for fish
+#    - oh-my-posh stelbent-compact.minimal theme for fish
 #
 # Run with:
 #   chmod +x provision-ubuntu-vm.sh
@@ -412,12 +412,12 @@ install_oh_my_posh() {
   chown "${target_user}:${target_user}" "${user_home}/.bashrc"
 }
 
-configure_oh_my_posh_atomic_for_fish() {
+configure_oh_my_posh_theme_for_fish() {
   local target_user="$1"
   local user_home
   user_home="$(eval echo "~${target_user}")"
 
-  log "Configuring oh-my-posh atomic theme for fish..."
+  log "Configuring oh-my-posh stelbent-compact.minimal theme for fish..."
 
   if ! run_as_user "$target_user" '
     set -euo pipefail
@@ -430,17 +430,17 @@ configure_oh_my_posh_atomic_for_fish() {
       exit 1
     fi
 
-    # Export built-in atomic theme to a local file
-    oh-my-posh config export --config atomic --output "$HOME/.poshthemes/atomic.omp.json"
+    # Export selected theme to a local file
+    oh-my-posh config export --config stelbent-compact.minimal --output "$HOME/.poshthemes/stelbent-compact.minimal.omp.json"
 
-    CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/atomic.omp.json" | source'\''
+    CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/stelbent-compact.minimal.omp.json" | source'\''
     touch "$HOME/.config/fish/config.fish"
 
     if ! grep -Fqx "$CONFIG_LINE" "$HOME/.config/fish/config.fish"; then
       printf "\n%s\n" "$CONFIG_LINE" >> "$HOME/.config/fish/config.fish"
     fi
   '; then
-    err "Failed to configure oh-my-posh atomic theme for fish."
+    err "Failed to configure oh-my-posh stelbent-compact.minimal theme for fish."
     exit 1
   fi
 
@@ -479,7 +479,7 @@ main() {
   local do_nvm=0
   local do_fish=0
   local do_omp=0
-  local do_atomic=0
+  local do_theme=0
 
   if ask_yes_no "Install nvm?" "y"; then
     do_nvm=1
@@ -494,8 +494,8 @@ main() {
   fi
 
   if [[ "$do_omp" -eq 1 ]]; then
-    if ask_yes_no "Configure oh-my-posh atomic theme?" "y"; then
-      do_atomic=1
+    if ask_yes_no "Configure oh-my-posh stelbent-compact.minimal theme?" "y"; then
+      do_theme=1
     fi
   fi
 
@@ -512,11 +512,11 @@ main() {
     install_oh_my_posh "$target_user"
   fi
 
-  if [[ "$do_atomic" -eq 1 ]]; then
+  if [[ "$do_theme" -eq 1 ]]; then
     if [[ "$do_fish" -eq 0 ]]; then
-      warn "Atomic theme for fish requested, but fish was not installed. Skipping fish prompt config."
+      warn "Fish theme requested, but fish was not installed. Skipping fish prompt config."
     else
-      configure_oh_my_posh_atomic_for_fish "$target_user"
+      configure_oh_my_posh_theme_for_fish "$target_user"
     fi
   fi
 
