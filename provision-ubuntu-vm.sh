@@ -342,8 +342,12 @@ install_base_packages() {
     unzip \
     ca-certificates \
     build-essential \
-    software-properties-common \
-    realpath
+    software-properties-common
+
+  if ! command -v realpath >/dev/null 2>&1; then
+    warn "'realpath' command not found. Installing coreutils..."
+    apt-get install -y coreutils
+  fi
 }
 
 install_fish() {

@@ -1,37 +1,104 @@
 # Ubuntu VM Provisioning Script
 
-A simple interactive script to quickly provision a fresh Ubuntu VM with common developer tooling and basic system configuration.
+Interactive provisioning script for fresh Ubuntu VMs.
 
-## ✨ Features
+It configures core system settings (hostname + static networking) and can install optional developer tooling in one guided run.
 
-This script automates:
+## Features
 
-### System Configuration
-- 🔹 Change hostname (interactive)
-- 🔹 Configure static IP using Netplan
-- 🔹 Preserve or override gateway and DNS
+### System preflight
+- Runs `apt-get update`
+- Runs `apt-get upgrade -y` (non-interactive)
+- Warns if reboot is recommended (`/var/run/reboot-required`)
 
-### Optional Software Installation
-- 📦 nvm (Node Version Manager)
-- 🟢 Latest Node.js LTS (via nvm)
-- 🐟 Fish shell
-- 🎨 Oh My Posh
-- ⚡ Oh My Posh Atomic theme (for Fish)
+### System configuration
+- Change hostname (interactive)
+- Configure static IPv4 with Netplan
+- Auto-detect current gateway and DNS, with optional overrides
+- Backup existing Netplan YAML before writing new config
+- Validate config with `netplan generate` before apply
 
----
+### Optional software
+- `nvm` (for the invoking sudo user)
+- Latest Node.js LTS via `nvm`
+- `fish` shell
+- `oh-my-posh`
+- `oh-my-posh` atomic theme for `fish`
 
-## 📦 Requirements
+### UX and safety improvements
+- Colored prompts and example input hints (when terminal supports color)
+- Strict IPv4/CIDR validation
+- Explicit error handling around key provisioning steps
 
-- Ubuntu (tested on Ubuntu Server 20.04+ / 22.04+)
-- Root or sudo access
-- Internet connection
+## Requirements
 
----
+- Ubuntu Server/Desktop (20.04+ recommended)
+- Root or `sudo` access
+- Internet access
 
-## 🚀 Usage
+## Usage
 
-### 1. Clone the repo
+### 1) Get the script
+
+If you already have this repo:
 
 ```bash
-git clone https://github.com/your-username/ubuntu-vm-provisioner.git
-cd ubuntu-vm-provisioner
+cd /path/to/provision-ubuntu-vm
+```
+
+Or clone it:
+
+```bash
+git clone <your-repo-url>
+cd provision-ubuntu-vm
+```
+
+### 2) Make executable
+
+```bash
+chmod +x provision-ubuntu-vm.sh
+```
+
+### 3) Run with sudo
+
+```bash
+sudo ./provision-ubuntu-vm.sh
+```
+
+The script is interactive and will ask for:
+- New hostname
+- Network interface + static CIDR
+- Gateway/DNS override choices
+- Optional installs (`nvm`, Node LTS, `fish`, `oh-my-posh`, atomic theme)
+
+## What gets changed
+
+- Hostname via `hostnamectl`
+- `/etc/hosts` entry for `127.0.1.1`
+- Netplan file: `/etc/netplan/99-custom-static.yaml`
+- Netplan backup directory: `/etc/netplan/backup-<timestamp>/`
+- User shell config files (when optional tools are selected), such as:
+  - `~/.bashrc`
+  - `~/.config/fish/config.fish`
+  - `~/.poshthemes/atomic.omp.json`
+
+## After provisioning
+
+Open a new terminal session (or log out/in if default shell changed), then verify:
+
+```bash
+hostnamectl
+ip addr
+fish --version
+oh-my-posh version
+bash -lc 'source ~/.bashrc && command -v nvm && node -v'
+```
+
+## Notes
+
+- The script targets the original sudo user for per-user installs (`SUDO_USER`).
+- If colors are not desired, run with `NO_COLOR=1`:
+
+```bash
+sudo NO_COLOR=1 ./provision-ubuntu-vm.sh
+```
