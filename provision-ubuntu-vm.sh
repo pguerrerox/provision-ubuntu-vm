@@ -430,6 +430,7 @@ install_oh_my_posh() {
   if ! run_as_user "$target_user" '
     set -euo pipefail
     mkdir -p "$HOME/.local/bin"
+    export PATH="$HOME/.local/bin:$PATH"
     curl -s https://ohmyposh.dev/install.sh | bash -s -- -d "$HOME/.local/bin"
   '; then
     err "Failed to install oh-my-posh for ${target_user}."
@@ -465,8 +466,13 @@ configure_oh_my_posh_theme_for_fish() {
     # Export selected theme to a local file
     oh-my-posh config export --config stelbent-compact.minimal --output "$HOME/.poshthemes/stelbent-compact.minimal.omp.json"
 
+    PATH_LINE='\''set -gx PATH "$HOME/.local/bin" $PATH'\''
     CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/stelbent-compact.minimal.omp.json" | source'\''
     touch "$HOME/.config/fish/config.fish"
+
+    if ! grep -Fqx "$PATH_LINE" "$HOME/.config/fish/config.fish"; then
+      printf "\n%s\n" "$PATH_LINE" >> "$HOME/.config/fish/config.fish"
+    fi
 
     if ! grep -Fqx "$CONFIG_LINE" "$HOME/.config/fish/config.fish"; then
       printf "\n%s\n" "$CONFIG_LINE" >> "$HOME/.config/fish/config.fish"
@@ -551,7 +557,11 @@ main() {
     fi
   fi
 
-  configure_static_ip
+  if ask_yes_no "Configure network settings now? This is the final step and may disconnect SSH." "n"; then
+    configure_static_ip
+  else
+    warn "Skipped network configuration. You can run the script again later to configure static IP."
+  fi
 
   echo
   printf "%b========================================%b\n" "$C_SUCCESS" "$C_RESET"
