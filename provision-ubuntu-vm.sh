@@ -338,7 +338,8 @@ EOF
     exit 1
   fi
 
-  if ask_yes_no "Apply new network settings now?" "y"; then
+  warn "Applying network changes may disconnect this session. Reconnect using the new IP after apply."
+  if ask_yes_no "Apply new network settings now? This may disconnect SSH; reconnect to the new IP." "y"; then
     log "Applying netplan..."
     if ! netplan apply; then
       err "Failed to apply netplan configuration."
@@ -505,7 +506,6 @@ main() {
   update_and_upgrade_system
   install_base_packages
   change_hostname
-  configure_static_ip
 
   local do_nvm=0
   local do_fish=0
@@ -550,6 +550,8 @@ main() {
       configure_oh_my_posh_theme_for_fish "$target_user"
     fi
   fi
+
+  configure_static_ip
 
   echo
   printf "%b========================================%b\n" "$C_SUCCESS" "$C_RESET"
