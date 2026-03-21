@@ -201,8 +201,20 @@ backup_netplan() {
   log "Netplan backup saved to: $backup_dir"
 }
 
+disable_cloud_init_network_config() {
+  local cloud_cfg_file="/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg"
+
+  mkdir -p /etc/cloud/cloud.cfg.d
+  cat > "$cloud_cfg_file" <<'EOF'
+network: {config: disabled}
+EOF
+
+  log "Disabled cloud-init network configuration: ${cloud_cfg_file}"
+}
+
 configure_static_ip() {
   local iface ipcidr gateway dns_input dns_list existing_gateway existing_dns
+  local netplan_target stale_netplan_file dns_yaml all_valid ipv4_count
   iface="$(choose_interface)"
 
   echo "Selected interface: $iface"
@@ -249,7 +261,6 @@ configure_static_ip() {
 
   echo "Detected DNS servers: ${dns_list}"
   if ask_yes_no "Override DNS servers?" "n"; then
-    local all_valid
     while true; do
       read -r -p "${C_QUESTION}[QUESTION]${C_RESET} Enter DNS servers separated by spaces (example: $(example_text "1.1.1.1 8.8.8.8")): " dns_input
       all_valid=1
@@ -274,7 +285,7 @@ configure_static_ip() {
     done
   fi
 
-  local dns_yaml=""
+  dns_yaml=""
   for d in $dns_list; do
     if validate_ip "$d"; then
       if [[ -n "$dns_yaml" ]]; then
@@ -290,8 +301,17 @@ configure_static_ip() {
   fi
 
   backup_netplan
+  disable_cloud_init_network_config
 
-  cat > /etc/netplan/99-custom-static.yaml <<EOF
+  if [[ -f /etc/netplan/50-cloud-init.yaml ]]; then
+    netplan_target="/etc/netplan/50-cloud-init.yaml"
+    stale_netplan_file="/etc/netplan/99-custom-static.yaml"
+  else
+    netplan_target="/etc/netplan/99-custom-static.yaml"
+    stale_netplan_file=""
+  fi
+
+  cat > "$netplan_target" <<EOF
 network:
   version: 2
   renderer: networkd
@@ -307,6 +327,11 @@ network:
         addresses: [${dns_yaml}]
 EOF
 
+  if [[ -n "$stale_netplan_file" && -f "$stale_netplan_file" ]]; then
+    rm -f "$stale_netplan_file"
+    log "Removed stale netplan file: ${stale_netplan_file}"
+  fi
+
   log "Validating netplan configuration..."
   if ! netplan generate; then
     err "Netplan validation failed. Backup remains available in /etc/netplan."
@@ -319,9 +344,15 @@ EOF
       err "Failed to apply netplan configuration."
       exit 1
     fi
-    log "Static IP configuration applied."
+
+    ipv4_count="$(ip -4 -o addr show dev "$iface" scope global | wc -l | tr -d ' ')"
+    if [[ "$ipv4_count" =~ ^[0-9]+$ ]] && (( ipv4_count > 1 )); then
+      warn "Multiple IPv4 addresses are still present on ${iface}. Check for other netplan files or runtime IP assignments."
+    else
+      log "Static IP configuration applied with a single IPv4 address on ${iface}."
+    fi
   else
-    warn "Skipped 'netplan apply'. Config saved to /etc/netplan/99-custom-static.yaml"
+    warn "Skipped 'netplan apply'. Config saved to ${netplan_target}"
   fi
 }
 
