@@ -24,13 +24,13 @@ set -euo pipefail
 
 # ---------- Helpers ----------
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_RESET='\033[0m'
-  C_INFO='\033[1;34m'
-  C_WARN='\033[1;33m'
-  C_ERR='\033[1;31m'
-  C_QUESTION='\033[1;36m'
-  C_EXAMPLE='\033[0;32m'
-  C_SUCCESS='\033[1;32m'
+  C_RESET=$'\033[0m'
+  C_INFO=$'\033[1;34m'
+  C_WARN=$'\033[1;33m'
+  C_ERR=$'\033[1;31m'
+  C_QUESTION=$'\033[1;36m'
+  C_EXAMPLE=$'\033[0;32m'
+  C_SUCCESS=$'\033[1;32m'
 else
   C_RESET=''
   C_INFO=''
@@ -165,27 +165,32 @@ change_hostname() {
 
 # ---------- Network / Netplan ----------
 choose_interface() {
+  local ifaces iface
+
   mapfile -t ifaces < <(ip -o link show | awk -F': ' '{print $2}' | grep -vE '^(lo|docker|br-|veth|virbr|tun|tap)')
   if [[ ${#ifaces[@]} -eq 0 ]]; then
     err "No network interfaces found."
     exit 1
   fi
 
-  echo
-  echo "Available network interfaces:"
-  local i=1
-  for iface in "${ifaces[@]}"; do
-    echo "  ${i}) ${iface}"
-    ((i++))
-  done
+  printf "\n%b[QUESTION]%b Select interface to configure:\n" "$C_QUESTION" "$C_RESET" >&2
+  PS3="${C_QUESTION}[QUESTION]${C_RESET} Enter interface number: "
 
   while true; do
-    read -r -p "${C_QUESTION}[QUESTION]${C_RESET} Select interface number to configure: " idx
-    if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 && idx <= ${#ifaces[@]} )); then
-      echo "${ifaces[$((idx-1))]}"
-      return
+    select iface in "${ifaces[@]}"; do
+      if [[ -n "${iface:-}" ]]; then
+        printf '%s\n' "$iface"
+        return 0
+      fi
+
+      printf "Invalid selection. Choose one of the listed numbers.\n" >&2
+      break
+    done
+
+    if [[ $? -ne 0 ]]; then
+      err "Failed while reading interface selection."
+      exit 1
     fi
-    echo "Invalid selection."
   done
 }
 
