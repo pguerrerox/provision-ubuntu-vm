@@ -10,9 +10,8 @@ set -euo pipefail
 # 3. Optionally install:
 #    - nvm
 #    - latest Node LTS
-#    - fish shell
 #    - oh-my-posh
-#    - oh-my-posh agnoster.minimal theme for fish
+#    - oh-my-posh agnoster.minimal theme for bash
 #
 # Run with:
 #   chmod +x provision-ubuntu-vm.sh
@@ -387,9 +386,23 @@ install_base_packages() {
   fi
 }
 
-install_fish() {
-  log "Installing fish..."
-  apt-get install -y fish
+ensure_default_shell_bash() {
+  local target_user="$1"
+  local bash_path current_shell
+
+  bash_path="$(command -v bash)"
+  current_shell="$(getent passwd "$target_user" | cut -d: -f7)"
+
+  if ! grep -Fxq "$bash_path" /etc/shells; then
+    echo "$bash_path" >> /etc/shells
+  fi
+
+  if [[ "$current_shell" != "$bash_path" ]]; then
+    chsh -s "$bash_path" "$target_user"
+    log "Default shell changed to bash for ${target_user}"
+  else
+    log "Default shell is already bash for ${target_user}"
+  fi
 }
 
 install_nvm_and_node() {
@@ -453,16 +466,15 @@ install_oh_my_posh() {
   chown "${target_user}:${target_user}" "${user_home}/.bashrc"
 }
 
-configure_oh_my_posh_theme_for_fish() {
+configure_oh_my_posh_theme_for_bash() {
   local target_user="$1"
   local user_home
   user_home="$(eval echo "~${target_user}")"
 
-  log "Configuring oh-my-posh agnoster.minimal theme for fish..."
+  log "Configuring oh-my-posh agnoster.minimal theme for bash..."
 
   if ! run_as_user "$target_user" '
     set -euo pipefail
-    mkdir -p "$HOME/.config/fish"
     mkdir -p "$HOME/.poshthemes"
     export PATH="$HOME/.local/bin:$PATH"
 
@@ -474,44 +486,19 @@ configure_oh_my_posh_theme_for_fish() {
     # Export selected theme to a local file
     oh-my-posh config export --config agnoster.minimal --output "$HOME/.poshthemes/agnoster.minimal.omp.json"
 
-    PATH_LINE='\''set -gx PATH "$HOME/.local/bin" $PATH'\''
-    LEGACY_CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/stelbent-compact.minimal.omp.json" | source'\''
-    CONFIG_LINE='\''if type -q oh-my-posh; and test -f "$HOME/.poshthemes/agnoster.minimal.omp.json"; oh-my-posh init fish --config "$HOME/.poshthemes/agnoster.minimal.omp.json" | source; end'\''
-    touch "$HOME/.config/fish/config.fish"
+    CONFIG_LINE='\''if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$HOME/.poshthemes/agnoster.minimal.omp.json" ]; then eval "$(oh-my-posh init bash --config "$HOME/.poshthemes/agnoster.minimal.omp.json")"; fi'\''
+    touch "$HOME/.bashrc"
 
-    if grep -Fqx "$LEGACY_CONFIG_LINE" "$HOME/.config/fish/config.fish"; then
-      grep -Fvx "$LEGACY_CONFIG_LINE" "$HOME/.config/fish/config.fish" > "$HOME/.config/fish/config.fish.tmp"
-      mv "$HOME/.config/fish/config.fish.tmp" "$HOME/.config/fish/config.fish"
-    fi
-
-    if ! grep -Fqx "$PATH_LINE" "$HOME/.config/fish/config.fish"; then
-      printf "\n%s\n" "$PATH_LINE" >> "$HOME/.config/fish/config.fish"
-    fi
-
-    if ! grep -Fqx "$CONFIG_LINE" "$HOME/.config/fish/config.fish"; then
-      printf "\n%s\n" "$CONFIG_LINE" >> "$HOME/.config/fish/config.fish"
+    if ! grep -Fqx "$CONFIG_LINE" "$HOME/.bashrc"; then
+      printf "\n%s\n" "$CONFIG_LINE" >> "$HOME/.bashrc"
     fi
   '; then
-    err "Failed to configure oh-my-posh agnoster.minimal theme for fish."
+    err "Failed to configure oh-my-posh agnoster.minimal theme for bash."
     exit 1
   fi
 
-  chown -R "${target_user}:${target_user}" "${user_home}/.config" "${user_home}/.poshthemes"
-}
-
-offer_set_default_shell_to_fish() {
-  local target_user="$1"
-  if ask_yes_no "Set fish as default shell for ${target_user}?" "n"; then
-    local fish_path
-    fish_path="$(command -v fish)"
-
-    if ! grep -Fxq "$fish_path" /etc/shells; then
-      echo "$fish_path" >> /etc/shells
-    fi
-
-    chsh -s "$fish_path" "$target_user"
-    log "Default shell changed to fish for ${target_user}"
-  fi
+  chown -R "${target_user}:${target_user}" "${user_home}/.poshthemes"
+  chown "${target_user}:${target_user}" "${user_home}/.bashrc"
 }
 
 # ---------- Main ----------
@@ -522,37 +509,21 @@ main() {
   target_user="$(get_target_user)"
 
   log "Target user for per-user installs: ${target_user}"
+  ensure_default_shell_bash "$target_user"
 
   update_and_upgrade_system
   install_base_packages
   change_hostname
 
   local do_nvm=0
-  local do_fish=0
   local do_omp=0
-  local do_theme=0
 
   if ask_yes_no "Install nvm?" "y"; then
     do_nvm=1
   fi
 
-  if ask_yes_no "Install fish shell?" "y"; then
-    do_fish=1
-  fi
-
   if ask_yes_no "Install oh-my-posh?" "y"; then
     do_omp=1
-  fi
-
-  if [[ "$do_omp" -eq 1 ]]; then
-    if ask_yes_no "Configure oh-my-posh agnoster.minimal theme?" "y"; then
-      do_theme=1
-    fi
-  fi
-
-  if [[ "$do_fish" -eq 1 ]]; then
-    install_fish
-    offer_set_default_shell_to_fish "$target_user"
   fi
 
   if [[ "$do_nvm" -eq 1 ]]; then
@@ -561,14 +532,7 @@ main() {
 
   if [[ "$do_omp" -eq 1 ]]; then
     install_oh_my_posh "$target_user"
-  fi
-
-  if [[ "$do_theme" -eq 1 ]]; then
-    if [[ "$do_fish" -eq 0 ]]; then
-      warn "Fish theme requested, but fish was not installed. Skipping fish prompt config."
-    else
-      configure_oh_my_posh_theme_for_fish "$target_user"
-    fi
+    configure_oh_my_posh_theme_for_bash "$target_user"
   fi
 
   if ask_yes_no "Configure network settings now? This is the final step and may disconnect SSH." "n"; then
@@ -590,7 +554,7 @@ main() {
   echo "3. Verify:"
   echo "   - hostnamectl"
   echo "   - ip addr"
-  echo "   - fish --version"
+  echo "   - bash -lc 'echo $SHELL'"
   echo "   - oh-my-posh version"
   echo "   - bash -lc 'source ~/.bashrc && command -v nvm && node -v'"
   echo
