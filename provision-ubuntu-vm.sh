@@ -12,7 +12,7 @@ set -euo pipefail
 #    - latest Node LTS
 #    - fish shell
 #    - oh-my-posh
-#    - oh-my-posh stelbent-compact.minimal theme for fish
+#    - oh-my-posh agnoster.minimal theme for fish
 #
 # Run with:
 #   chmod +x provision-ubuntu-vm.sh
@@ -394,7 +394,10 @@ install_fish() {
 
 install_nvm_and_node() {
   local target_user="$1"
+  local user_home
   log "Installing nvm for user: $target_user"
+
+  user_home="$(eval echo "~${target_user}")"
 
   if ! run_as_user "$target_user" '
     set -euo pipefail
@@ -421,6 +424,11 @@ install_nvm_and_node() {
       exit 1
     fi
   fi
+
+  append_if_missing "${user_home}/.bashrc" 'export NVM_DIR="$HOME/.nvm"'
+  append_if_missing "${user_home}/.bashrc" '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
+  append_if_missing "${user_home}/.bashrc" '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
+  chown "${target_user}:${target_user}" "${user_home}/.bashrc"
 }
 
 install_oh_my_posh() {
@@ -450,7 +458,7 @@ configure_oh_my_posh_theme_for_fish() {
   local user_home
   user_home="$(eval echo "~${target_user}")"
 
-  log "Configuring oh-my-posh stelbent-compact.minimal theme for fish..."
+  log "Configuring oh-my-posh agnoster.minimal theme for fish..."
 
   if ! run_as_user "$target_user" '
     set -euo pipefail
@@ -464,11 +472,17 @@ configure_oh_my_posh_theme_for_fish() {
     fi
 
     # Export selected theme to a local file
-    oh-my-posh config export --config stelbent-compact.minimal --output "$HOME/.poshthemes/stelbent-compact.minimal.omp.json"
+    oh-my-posh config export --config agnoster.minimal --output "$HOME/.poshthemes/agnoster.minimal.omp.json"
 
     PATH_LINE='\''set -gx PATH "$HOME/.local/bin" $PATH'\''
-    CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/stelbent-compact.minimal.omp.json" | source'\''
+    LEGACY_CONFIG_LINE='\''oh-my-posh init fish --config "$HOME/.poshthemes/stelbent-compact.minimal.omp.json" | source'\''
+    CONFIG_LINE='\''if type -q oh-my-posh; and test -f "$HOME/.poshthemes/agnoster.minimal.omp.json"; oh-my-posh init fish --config "$HOME/.poshthemes/agnoster.minimal.omp.json" | source; end'\''
     touch "$HOME/.config/fish/config.fish"
+
+    if grep -Fqx "$LEGACY_CONFIG_LINE" "$HOME/.config/fish/config.fish"; then
+      grep -Fvx "$LEGACY_CONFIG_LINE" "$HOME/.config/fish/config.fish" > "$HOME/.config/fish/config.fish.tmp"
+      mv "$HOME/.config/fish/config.fish.tmp" "$HOME/.config/fish/config.fish"
+    fi
 
     if ! grep -Fqx "$PATH_LINE" "$HOME/.config/fish/config.fish"; then
       printf "\n%s\n" "$PATH_LINE" >> "$HOME/.config/fish/config.fish"
@@ -478,7 +492,7 @@ configure_oh_my_posh_theme_for_fish() {
       printf "\n%s\n" "$CONFIG_LINE" >> "$HOME/.config/fish/config.fish"
     fi
   '; then
-    err "Failed to configure oh-my-posh stelbent-compact.minimal theme for fish."
+    err "Failed to configure oh-my-posh agnoster.minimal theme for fish."
     exit 1
   fi
 
@@ -531,7 +545,7 @@ main() {
   fi
 
   if [[ "$do_omp" -eq 1 ]]; then
-    if ask_yes_no "Configure oh-my-posh stelbent-compact.minimal theme?" "y"; then
+    if ask_yes_no "Configure oh-my-posh agnoster.minimal theme?" "y"; then
       do_theme=1
     fi
   fi
